@@ -150,12 +150,5 @@ This software uses the following packages:
 - [react-native-gifted-chat](https://github.com/FaridSafi/react-native-gifted-chat)
 - [react-native-emoji-modal](https://github.com/staltz/react-native-emoji-modal)
 
----
-
-## 📈 Star History
-
-<a href="https://app.repohistory.com/star-history?repo=Ctere1/react-native-chat">
-  <img src="https://app.repohistory.com/api/svg?repo=Ctere1/react-native-chat&type=Date&background=0D1117&color=6278f8" alt="Star History Chart">
-</a>
 
 ---
