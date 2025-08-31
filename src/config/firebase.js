@@ -1,34 +1,21 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import {
-  initializeAuth,
-  getReactNativePersistence,
-  browserSessionPersistence,
-} from 'firebase/auth';
+// src/firebase.js
+import { initializeApp } from "firebase/app";
+import { getAuth} from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Firebase config
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: Constants.expoConfig.extra.apiKey,
-  authDomain: Constants.expoConfig.extra.authDomain,
-  projectId: Constants.expoConfig.extra.projectId,
-  storageBucket: Constants.expoConfig.extra.storageBucket,
-  messagingSenderId: Constants.expoConfig.extra.messagingSenderId,
-  appId: Constants.expoConfig.extra.appId,
-  databaseURL: Constants.expoConfig.extra.databaseURL,
-  measurementId: Constants.expoConfig.extra.measurementId,
+  apiKey: "AIzaSyB0Orp05fD56GJ1gcPGyFuTSWpHCChgPhY",
+  authDomain: "chatbox-1e96b.firebaseapp.com",
+  projectId: "chatbox-1e96b",
+  storageBucket: "chatbox-1e96b.appspot.com", // ✅ should be .appspot.com not .firebasestorage.app
+  messagingSenderId: "578270105487",
+  appId: "1:578270105487:web:9d523fb43e1a8762f3c5fa"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-const persistence =
-  Platform.OS === 'web'
-    ? browserSessionPersistence
-    : getReactNativePersistence(ReactNativeAsyncStorage);
-
-export const auth = initializeAuth(app, { persistence });
-
-export const database = getFirestore();
+// Export auth + firestore
+export const auth = getAuth(app);
+export const db = getFirestore(app);

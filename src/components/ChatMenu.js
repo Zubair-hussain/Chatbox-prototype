@@ -1,3 +1,4 @@
+// components/ChatMenu.js
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,12 +7,12 @@ import { useNavigation } from '@react-navigation/native';
 import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 const ChatMenu = ({ chatName, chatId }) => {
   const navigation = useNavigation();
 
-  const handleDeleteChat = () => {
+  const handleDeleteChat = async () => {
     Alert.alert(
       'Delete this chat?',
       'Messages will be removed from your device.',
@@ -23,25 +24,28 @@ const ChatMenu = ({ chatName, chatId }) => {
             try {
               const userEmail = auth?.currentUser?.email;
               if (!userEmail) throw new Error('You are not authenticated.');
-              const chatRef = doc(database, 'chats', chatId);
+
+              const chatRef = doc(db, 'chats', chatId);
               const chatDoc = await getDoc(chatRef);
+
               if (!chatDoc.exists()) throw new Error('Chat not found.');
 
               const users = chatDoc.data().users || [];
-              const updatedUsers = users.map(user =>
-                user.email === userEmail ? { ...user, deletedFromChat: true } : user
+              const updatedUsers = users.map((user) =>
+                user.email === userEmail
+                  ? { ...user, deletedFromChat: true }
+                  : user
               );
 
               await setDoc(chatRef, { users: updatedUsers }, { merge: true });
 
-              // If all users marked deleted, remove chat completely
-              const hasAllDeleted = updatedUsers.every(user => user.deletedFromChat);
+              // Remove chat completely if all users deleted it
+              const hasAllDeleted = updatedUsers.every((u) => u.deletedFromChat);
               if (hasAllDeleted) await deleteDoc(chatRef);
 
-              // Go back after deletion
               navigation.goBack();
             } catch (err) {
-              Alert.alert('Error', err.message);
+              Alert.alert('Error', err.message || 'Failed to delete chat.');
             }
           },
         },
@@ -54,29 +58,52 @@ const ChatMenu = ({ chatName, chatId }) => {
   return (
     <Menu>
       <MenuTrigger>
-        <Ionicons name="ellipsis-vertical" size={25} color="#373737" style={styles.menuIcon} />
+        <Ionicons
+          name="ellipsis-vertical"
+          size={25}
+          color="#373737"
+          style={styles.menuIcon}
+        />
       </MenuTrigger>
       <MenuOptions customStyles={menuOptionsStyles}>
+        {/* Chat Info */}
         <MenuOption
           onSelect={() => navigation.navigate('ChatInfo', { chatId, chatName })}
           style={styles.optionRow}
         >
-          <Ionicons name="information-circle-outline" size={20} color="#008069" style={styles.optionIcon} />
+          <Ionicons
+            name="information-circle-outline"
+            size={20}
+            color="#008069"
+            style={styles.optionIcon}
+          />
           <Text style={styles.optionText}>Chat Info</Text>
         </MenuOption>
-        <MenuOption
-          onSelect={handleDeleteChat}
-          style={styles.optionRow}
-        >
-          <Ionicons name="trash-outline" size={20} color="#FF3B30" style={styles.optionIcon} />
-          <Text style={[styles.optionText, { color: '#FF3B30' }]}>Delete Chat</Text>
+
+        {/* Delete Chat */}
+        <MenuOption onSelect={handleDeleteChat} style={styles.optionRow}>
+          <Ionicons
+            name="trash-outline"
+            size={20}
+            color="#FF3B30"
+            style={styles.optionIcon}
+          />
+          <Text style={[styles.optionText, { color: '#FF3B30' }]}>
+            Delete Chat
+          </Text>
         </MenuOption>
 
+        {/* Mute Chat (Future Feature) */}
         <MenuOption
           onSelect={() => Alert.alert('Feature coming soon')}
           style={styles.optionRow}
         >
-          <Ionicons name="volume-mute-outline" size={20} color="#373737" style={styles.optionIcon} />
+          <Ionicons
+            name="volume-mute-outline"
+            size={20}
+            color="#373737"
+            style={styles.optionIcon}
+          />
           <Text style={styles.optionText}>Mute Chat</Text>
         </MenuOption>
       </MenuOptions>

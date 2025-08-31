@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { doc, query, setDoc, orderBy, collection, onSnapshot } from 'firebase/firestore';
+import { doc, query, setDoc, orderBy, collection, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import {
   Text,
   View,
@@ -15,7 +15,7 @@ import {
 
 import { colors } from '../config/constants';
 import ContactRow from '../components/ContactRow';
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 const Group = () => {
   const navigation = useNavigation();
@@ -25,7 +25,7 @@ const Group = () => {
   const [groupName, setGroupName] = useState('');
 
   useEffect(() => {
-    const collectionUserRef = collection(database, 'users');
+    const collectionUserRef = collection(db, 'users');
     const q = query(collectionUserRef, orderBy('name', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs);
@@ -76,7 +76,7 @@ const Group = () => {
     setModalVisible(true);
   };
 
-  const handleCreateGroup = () => {
+  const handleCreateGroup = async () => {
     if (!groupName.trim()) {
       alert('Group name cannot be empty');
       return;
@@ -90,25 +90,31 @@ const Group = () => {
         deletedFromChat: false,
       }));
 
-    usersToAdd.unshift({
-      email: auth?.currentUser?.email,
-      name: auth?.currentUser?.displayName,
-      deletedFromChat: false,
-    });
+    // ensure the creator is included
+    if (!usersToAdd.find((u) => u.email === auth?.currentUser?.email)) {
+      usersToAdd.unshift({
+        email: auth?.currentUser?.email,
+        name: auth?.currentUser?.displayName,
+        deletedFromChat: false,
+      });
+    }
 
-    const newRef = doc(collection(database, 'chats'));
-    setDoc(newRef, {
-      lastUpdated: Date.now(),
+    const userEmails = usersToAdd.map((u) => u.email);
+
+    const newRef = doc(collection(db, 'chats'));
+    await setDoc(newRef, {
+      lastUpdated: serverTimestamp(),
       users: usersToAdd,
+      userEmails,
       messages: [],
       groupName,
       groupAdmins: [auth?.currentUser?.email],
-    }).then(() => {
-      navigation.navigate('Chat', { id: newRef.id, chatName: groupName });
-      deSelectItems();
-      setModalVisible(false);
-      setGroupName('');
     });
+
+    navigation.navigate('Chat', { id: newRef.id, chatName: groupName });
+    deSelectItems();
+    setModalVisible(false);
+    setGroupName('');
   };
 
   return (
@@ -158,7 +164,7 @@ const Group = () => {
             onChangeText={setGroupName}
             value={groupName}
             placeholder="Group Name"
-            onSubmitEditing={handleCreateGroup} // Create group on submit
+            onSubmitEditing={handleCreateGroup}
           />
         </View>
       </Modal>

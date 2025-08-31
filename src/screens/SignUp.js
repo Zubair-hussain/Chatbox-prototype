@@ -16,7 +16,7 @@ import {
 
 import { colors } from '../config/constants';
 import backImage from '../assets/background.png';
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 export default function SignUp({ navigation }) {
   const [email, setEmail] = useState('');
@@ -28,7 +28,7 @@ export default function SignUp({ navigation }) {
       createUserWithEmailAndPassword(auth, email, password)
         .then((cred) => {
           updateProfile(cred.user, { displayName: username }).then(() => {
-            setDoc(doc(database, 'users', cred.user.email), {
+            setDoc(doc(db, 'users', cred.user.email), {
               id: cred.user.uid,
               email: cred.user.email,
               name: cred.user.displayName,

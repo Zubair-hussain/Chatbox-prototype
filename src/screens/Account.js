@@ -5,16 +5,34 @@ import { doc, deleteDoc } from 'firebase/firestore';
 
 import Cell from '../components/Cell';
 import { colors } from '../config/constants';
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 const Account = () => {
   const onSignOut = () => {
-    signOut(auth).catch((error) => console.log('Error logging out: ', error));
+    signOut(auth).catch((error) => {
+      console.log('Error logging out: ', error);
+      Alert.alert('Logout Failed', error.message);
+    });
   };
 
-  const deleteAccount = () => {
-    deleteUser(auth?.currentUser).catch((error) => console.log('Error deleting: ', error));
-    deleteDoc(doc(database, 'users', auth?.currentUser.email));
+  const deleteAccount = async () => {
+    try {
+      const user = auth?.currentUser;
+      if (!user) throw new Error('No user logged in.');
+
+      // First delete user’s Firestore document
+      if (user.email) {
+        await deleteDoc(doc(db, 'users', user.email));
+      }
+
+      // Then delete Firebase Auth user
+      await deleteUser(user);
+
+      Alert.alert('Account deleted', 'Your account and data have been removed.');
+    } catch (error) {
+      console.log('Error deleting account: ', error);
+      Alert.alert('Error', error.message);
+    }
   };
 
   return (
@@ -24,7 +42,7 @@ const Account = () => {
         icon="close-circle-outline"
         tintColor={colors.primary}
         onPress={() => {
-          alert('Blocked users touched');
+          Alert.alert('Blocked users touched');
         }}
         style={{ marginTop: 20 }}
       />
@@ -35,17 +53,10 @@ const Account = () => {
         onPress={() => {
           Alert.alert(
             'Logout?',
-            'You have to login again',
+            'You will need to login again.',
             [
-              {
-                text: 'Logout',
-                onPress: () => {
-                  onSignOut();
-                },
-              },
-              {
-                text: 'Cancel',
-              },
+              { text: 'Logout', onPress: onSignOut },
+              { text: 'Cancel', style: 'cancel' },
             ],
             { cancelable: true }
           );
@@ -59,17 +70,10 @@ const Account = () => {
         onPress={() => {
           Alert.alert(
             'Delete account?',
-            'Deleting your account will erase your message history',
+            'Deleting your account will erase your message history.',
             [
-              {
-                text: 'Delete my account',
-                onPress: () => {
-                  deleteAccount();
-                },
-              },
-              {
-                text: 'Cancel',
-              },
+              { text: 'Delete my account', onPress: deleteAccount, style: 'destructive' },
+              { text: 'Cancel', style: 'cancel' },
             ],
             { cancelable: true }
           );

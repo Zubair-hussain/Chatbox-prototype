@@ -1,8 +1,11 @@
+// App.js
+import 'react-native-gesture-handler'; // MUST be first
 import { registerRootComponent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import { onAuthStateChanged } from 'firebase/auth';
 import { View, ActivityIndicator } from 'react-native';
 import { MenuProvider } from 'react-native-popup-menu';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import React, { useState, useEffect, useContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -18,12 +21,13 @@ import Group from './screens/Group';
 import SignUp from './screens/SignUp';
 import Profile from './screens/Profile';
 import Account from './screens/Account';
-import { auth } from './config/firebase';
 import Settings from './screens/Settings';
 import ChatInfo from './screens/ChatInfo';
-import { colors } from './config/constants';
 import ChatMenu from './components/ChatMenu';
 import ChatHeader from './components/ChatHeader';
+
+import { auth } from './config/firebase';
+import { colors } from './config/constants';
 import { UnreadMessagesContext, UnreadMessagesProvider } from './contexts/UnreadMessagesContext';
 import {
   AuthenticatedUserContext,
@@ -33,6 +37,7 @@ import {
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// ==================== Tab Navigator ====================
 const TabNavigator = () => {
   const { unreadCount, setUnreadCount } = useContext(UnreadMessagesContext);
 
@@ -50,7 +55,10 @@ const TabNavigator = () => {
         presentation: 'modal',
       })}
     >
-      <Tab.Screen name="Chats" options={{ tabBarBadge: unreadCount > 0 ? unreadCount : null }}>
+      <Tab.Screen
+        name="Chats"
+        options={{ tabBarBadge: unreadCount > 0 ? unreadCount : null }}
+      >
         {() => <Chats setUnreadCount={setUnreadCount} />}
       </Tab.Screen>
       <Tab.Screen name="Settings" component={Settings} />
@@ -58,6 +66,7 @@ const TabNavigator = () => {
   );
 };
 
+// ==================== Main Stack ====================
 const MainStack = () => (
   <Stack.Navigator>
     <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
@@ -83,6 +92,7 @@ const MainStack = () => (
   </Stack.Navigator>
 );
 
+// ==================== Auth Stack ====================
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={Login} />
@@ -90,6 +100,7 @@ const AuthStack = () => (
   </Stack.Navigator>
 );
 
+// ==================== Root Navigator ====================
 const RootNavigator = () => {
   const { user, setUser } = useContext(AuthenticatedUserContext);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,15 +117,21 @@ const RootNavigator = () => {
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
-  return <NavigationContainer>{user ? <MainStack /> : <AuthStack />}</NavigationContainer>;
+  return (
+    <NavigationContainer>
+      {user ? <MainStack /> : <AuthStack />}
+    </NavigationContainer>
+  );
 };
 
+// ==================== App ====================
 const App = () => (
+  <SafeAreaProvider>
     <MenuProvider>
       <AuthenticatedUserProvider>
         <UnreadMessagesProvider>
@@ -122,6 +139,7 @@ const App = () => (
         </UnreadMessagesProvider>
       </AuthenticatedUserProvider>
     </MenuProvider>
-  );
+  </SafeAreaProvider>
+);
 
-  export default registerRootComponent(App);
+export default registerRootComponent(App);

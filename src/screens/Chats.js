@@ -28,7 +28,7 @@ import {
 
 import { colors } from '../config/constants';
 import ContactRow from '../components/ContactRow';
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 const Chats = ({ setUnreadCount }) => {
   const navigation = useNavigation();
@@ -48,13 +48,12 @@ const Chats = ({ setUnreadCount }) => {
       });
       return () => subscription.remove();
     }
-    // Always return a cleanup function for non-android platforms
-    return () => { };
+    return () => {};
   }, [selectedItems.length]);
 
   useFocusEffect(
     useCallback(() => {
-      let unsubscribe = () => { };
+      let unsubscribe = () => {};
       const loadNewMessages = async () => {
         try {
           const storedMessages = await AsyncStorage.getItem('newMessages');
@@ -65,7 +64,8 @@ const Chats = ({ setUnreadCount }) => {
           console.log('Error loading new messages from storage', error);
         }
       };
-      const chatsRef = collection(database, 'chats');
+
+      const chatsRef = collection(db, 'chats');
       const q = query(
         chatsRef,
         where('users', 'array-contains', {
@@ -75,9 +75,11 @@ const Chats = ({ setUnreadCount }) => {
         }),
         orderBy('lastUpdated', 'desc')
       );
+
       unsubscribe = onSnapshot(q, (snapshot) => {
         setChats(snapshot.docs);
         setLoading(false);
+
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'modified') {
             const chatId = change.doc.id;
@@ -101,7 +103,9 @@ const Chats = ({ setUnreadCount }) => {
           }
         });
       });
+
       loadNewMessages();
+
       return () => {
         if (unsubscribe) unsubscribe();
       };
@@ -173,10 +177,10 @@ const Chats = ({ setUnreadCount }) => {
                     ? { ...user, deletedFromChat: true }
                     : user
                 );
-              return setDoc(doc(database, 'chats', chatId), { users: updatedUsers }, { merge: true }).then(() => {
+              return setDoc(doc(db, 'chats', chatId), { users: updatedUsers }, { merge: true }).then(() => {
                 const deletedCount = updatedUsers.filter((u) => u.deletedFromChat).length;
                 if (deletedCount === updatedUsers.length) {
-                  return deleteDoc(doc(database, 'chats', chatId));
+                  return deleteDoc(doc(db, 'chats', chatId));
                 }
                 return Promise.resolve();
               });

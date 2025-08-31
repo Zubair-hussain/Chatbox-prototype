@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import EmojiModal from 'react-native-emoji-modal';
 import React, { useState, useEffect, useCallback } from 'react';
-import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { Send, Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
 import { ref, getStorage, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import {
@@ -14,10 +14,11 @@ import {
   BackHandler,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 
 import { colors } from '../config/constants';
-import { auth, database } from '../config/firebase';
+import { auth, db } from '../config/firebase';
 
 const RenderLoadingUpload = () => (
   <View style={styles.loadingContainerUpload}>
@@ -41,15 +42,7 @@ const RenderBubble = (props) => (
   />
 );
 
-const RenderAttach = (props) => (
-  <TouchableOpacity {...props} style={styles.addImageIcon}>
-    <View>
-      <Ionicons name="attach-outline" size={32} color={colors.teal} />
-    </View>
-  </TouchableOpacity>
-);
-
-const RenderInputToolbar = (props, handleEmojiPanel) => (
+const RenderInputToolbar = (props, handleEmojiPanel, pickImage) => (
   <View
     style={{
       flexDirection: 'row',
@@ -60,23 +53,24 @@ const RenderInputToolbar = (props, handleEmojiPanel) => (
   >
     <InputToolbar
       {...props}
-      renderActions={() => RenderActions(handleEmojiPanel)}
+      renderActions={() => (
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity style={styles.iconButton} onPress={handleEmojiPanel}>
+            <Ionicons name="happy-outline" size={28} color={colors.teal} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={pickImage} style={styles.iconButton}>
+            <Ionicons name="attach-outline" size={28} color={colors.teal} />
+          </TouchableOpacity>
+        </View>
+      )}
       containerStyle={styles.inputToolbar}
     />
     <Send {...props}>
       <View style={styles.sendIconContainer}>
-        <Ionicons name="send" size={24} color={colors.teal} />
+        <Ionicons name="send" size={22} color={colors.teal} />
       </View>
     </Send>
   </View>
-);
-
-const RenderActions = (handleEmojiPanel) => (
-  <TouchableOpacity style={styles.emojiIcon} onPress={handleEmojiPanel}>
-    <View>
-      <Ionicons name="happy-outline" size={32} color={colors.teal} />
-    </View>
-  </TouchableOpacity>
 );
 
 function Chat({ route }) {
@@ -85,20 +79,25 @@ function Chat({ route }) {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(database, 'chats', route.params.id), (document) => {
-      setMessages(
-        document.data().messages.map((message) => ({
-          ...message,
-          createdAt: message.createdAt.toDate(),
-          image: message.image ?? '',
-        }))
-      );
+    const chatRef = doc(db, 'chats', route.params.id);
+
+    const unsubscribe = onSnapshot(chatRef, (snapshot) => {
+      const data = snapshot.data();
+      if (data?.messages) {
+        setMessages(
+          data.messages.map((message) => ({
+            ...message,
+            createdAt: message?.createdAt?.toDate?.() || new Date(),
+            image: message.image ?? '',
+          }))
+        );
+      } else {
+        setMessages([]);
+      }
     });
 
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      //  Dismiss the keyboard
       Keyboard.dismiss();
-      //  If the emoji panel is open, close it
       if (modal) {
         setModal(false);
         return true;
@@ -106,12 +105,10 @@ function Chat({ route }) {
       return false;
     });
 
-    //  Dismiss the emoji panel when the keyboard is shown
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
       if (modal) setModal(false);
     });
 
-    // Cleanup
     return () => {
       unsubscribe();
       backHandler.remove();
@@ -121,101 +118,113 @@ function Chat({ route }) {
 
   const onSend = useCallback(
     async (m = []) => {
-      // Get messages
-      const chatDocRef = doc(database, 'chats', route.params.id);
-      const chatDocSnap = await getDoc(chatDocRef);
+      try {
+        const chatDocRef = doc(db, 'chats', route.params.id);
+        const chatDocSnap = await getDoc(chatDocRef);
+        const chatData = chatDocSnap.data();
 
-      const chatData = chatDocSnap.data();
-      const data = chatData.messages.map((message) => ({
-        ...message,
-        createdAt: message.createdAt.toDate(),
-        image: message.image ?? '',
-      }));
+        const existingMessages =
+          chatData?.messages?.map((message) => ({
+            ...message,
+            createdAt: message?.createdAt?.toDate?.() || new Date(),
+            image: message.image ?? '',
+          })) || [];
 
-      // Attach new message
-      const messagesWillSend = [{ ...m[0], sent: true, received: false }];
-      const chatMessages = GiftedChat.append(data, messagesWillSend);
+        const toSend = {
+          ...m[0],
+          sent: true,
+          received: false,
+          createdAt: serverTimestamp(),
+        };
 
-      setDoc(
-        doc(database, 'chats', route.params.id),
-        {
-          messages: chatMessages,
-          lastUpdated: Date.now(),
-        },
-        { merge: true }
-      );
+        const chatMessages = GiftedChat.append(existingMessages, [toSend]);
+
+        await setDoc(
+          chatDocRef,
+          {
+            messages: chatMessages,
+            lastUpdated: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        console.error('Error sending message: ', error);
+        Alert.alert('Error', 'Could not send message.');
+      }
     },
     [route.params.id]
   );
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 1,
+      });
 
-    if (!result.canceled) {
-      await uploadImageAsync(result.assets[0].uri);
+      if (!result.canceled) {
+        await uploadImageAsync(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Image Picker Error: ', error);
     }
   };
 
   const uploadImageAsync = async (uri) => {
     setUploading(true);
-    const blob = await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.onload = () => resolve(xhr.response);
-      xhr.onerror = () => reject(new TypeError('Network request failed'));
-      xhr.responseType = 'blob';
-      xhr.open('GET', uri, true);
-      xhr.send(null);
-    });
+    try {
+      const blob = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.onload = () => resolve(xhr.response);
+        xhr.onerror = () => reject(new TypeError('Network request failed'));
+        xhr.responseType = 'blob';
+        xhr.open('GET', uri, true);
+        xhr.send(null);
+      });
 
-    const randomString = uuid.v4();
-    const fileRef = ref(getStorage(), randomString);
-    const uploadTask = uploadBytesResumable(fileRef, blob);
+      const randomString = uuid.v4();
+      const fileRef = ref(getStorage(), `images/${randomString}`);
+      const uploadTask = uploadBytesResumable(fileRef, blob);
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        console.log(`Upload is ${progress}% done`);
-      },
-      (error) => {
-        // Handle unsuccessful uploads
-        console.log(error);
-      },
-      async () => {
-        const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-        setUploading(false);
-        onSend([
-          {
-            _id: randomString,
-            createdAt: new Date(),
-            text: '',
-            image: downloadUrl,
-            user: {
-              _id: auth?.currentUser?.email,
-              name: auth?.currentUser?.displayName,
-              avatar: 'https://i.pravatar.cc/300',
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log(`Upload is ${progress}% done`);
+        },
+        (error) => {
+          console.error('Upload error: ', error);
+          Alert.alert('Error', 'Image upload failed.');
+        },
+        async () => {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          blob.close?.();
+          setUploading(false);
+          onSend([
+            {
+              _id: randomString,
+              createdAt: new Date(),
+              text: '',
+              image: downloadUrl,
+              user: {
+                _id: auth?.currentUser?.email,
+                name: auth?.currentUser?.displayName,
+                avatar: 'https://i.pravatar.cc/300',
+              },
             },
-          },
-        ]);
-      }
-    );
+          ]);
+        }
+      );
+    } catch (error) {
+      console.error('Upload Exception: ', error);
+      setUploading(false);
+    }
   };
 
   const handleEmojiPanel = useCallback(() => {
-    setModal((prevModal) => {
-      if (prevModal) {
-        // If the modal is already open, close it
-        Keyboard.dismiss();
-        return false;
-      }
-      // If the modal is closed, open it
-      Keyboard.dismiss();
-      return true;
-    });
+    setModal((prevModal) => !prevModal);
+    Keyboard.dismiss();
   }, []);
 
   return (
@@ -234,14 +243,12 @@ function Chat({ route }) {
           name: auth?.currentUser?.displayName,
           avatar: 'https://i.pravatar.cc/300',
         }}
-        renderBubble={(props) => RenderBubble(props)}
-        renderSend={(props) => RenderAttach({ ...props, onPress: pickImage })}
-        renderUsernameOnMessage
-        renderAvatarOnTop
-        renderInputToolbar={(props) => RenderInputToolbar(props, handleEmojiPanel)}
+        renderBubble={RenderBubble}
+        renderInputToolbar={(props) =>
+          RenderInputToolbar(props, handleEmojiPanel, pickImage)
+        }
         minInputToolbarHeight={56}
         scrollToBottom
-        onPressActionButton={handleEmojiPanel}
         scrollToBottomStyle={styles.scrollToBottomStyle}
         renderLoading={RenderLoading}
       />
@@ -276,23 +283,17 @@ function Chat({ route }) {
 }
 
 const styles = StyleSheet.create({
-  addImageIcon: {
+  iconButton: {
     borderRadius: 16,
     bottom: 8,
     height: 32,
+    marginLeft: 4,
     width: 32,
   },
   emojiBackgroundModal: {},
   emojiContainerModal: {
     height: 348,
     width: 396,
-  },
-  emojiIcon: {
-    borderRadius: 16,
-    bottom: 8,
-    height: 32,
-    marginLeft: 4,
-    width: 32,
   },
   emojiModal: {},
   inputToolbar: {
