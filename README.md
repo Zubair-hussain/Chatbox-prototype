@@ -165,11 +165,6 @@ This software uses the following packages:
 
 ---
 
-## © License
-![GitHub](https://img.shields.io/github/license/Ctere1/react-native-chat)
-
----
-
 ## 📈 Star History
 
 <a href="https://app.repohistory.com/star-history?repo=Ctere1/react-native-chat">
@@ -177,11 +172,3 @@ This software uses the following packages:
 </a>
 
 ---
-
-## 📌 Contributors
-
-![Repobeats analytics image](https://repobeats.axiom.co/api/embed/0d9c40f20e57bc518a7e1419e18f6b6cfa57873d.svg)
-
-<a href="https://github.com/Ctere1/react-native-chat/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Ctere1/react-native-chat" alt="Contributors">
-</a>
